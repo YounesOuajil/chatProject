@@ -1,0 +1,338 @@
+/* Chat.css */
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+
+.App {
+  flex: 2;
+  display: flex;
+  
+  height: 100vh;
+  background-color: #b4cee9;
+}
+
+.videocalldisplay {
+  display: none;
+  width: 70%; /* Hidden until call starts */
+}
+
+.call-active .videocalldisplay {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative; /* Make the container position relative */
+}
+
+.localvideo {
+  position: absolute; /* Position the local video absolutely */
+  bottom: 10px; /* Adjust these values as needed */
+  right: 10px;  /* Adjust these values as needed */
+  width: 30%; /* Adjust the size as needed */
+  z-index: 10; /* Ensure it appears on top */
+}
+
+.remotvideo {
+  position: relative; /* Ensure the remote video is positioned correctly */
+  width: 100%;
+  height: 100%;
+}
+
+.video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+
+.conversation-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #e6e6e6;
+  padding: 0;
+  background-color: #fff;
+}
+
+.conversation-container form {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+#sender-id {
+  flex: 1;
+  padding: 10px;
+  margin-right: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+button .conversation-container .conversation-button {
+  padding: 10px;
+  background-color: #db35e1;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  width: auto;
+  max-width: 70%;
+
+}
+
+
+.loading {
+  text-align: center;
+}
+
+.message-list {
+  display: flex;
+  flex: 1;
+  padding: 0;
+  margin: 0;
+  flex-direction: column;
+  overflow-y: auto;
+   list-style-type: none;
+  
+}
+
+
+.message-list li .message-item{
+  padding: 10px;
+  border-bottom: 1px solid #c55e5e;
+  cursor: pointer;
+  
+}
+
+.message-list li .message-content message-timestamp{
+  font-size: 0.75em;
+  color: #999;
+  text-align: right;
+ background-color: #0f234d;
+  width: fit-content;
+  text-wrap: wrap;
+}
+
+
+/* .received-message {
+  background-color: #275900;
+}
+
+.sent-message {
+  background-color: #632d2d;
+  
+} */
+
+.chat-history {
+   flex: 2;
+  display: flex;
+  flex-direction: column;
+  padding: 10px; 
+  background-color: #e5ddd5;
+   overflow: hidden; 
+}
+
+.video-call-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.video-call-container img,
+.video-call-container button {
+  cursor: pointer;
+}
+
+.end-call {
+  background-color: #f44336;
+  width: fit-content;
+  height: fit-content;
+}
+
+
+
+.message-item {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+  margin-left: -3px;
+  margin-right: 30px;
+}
+
+/* .sender.message-content {
+  align-self: flex-end;
+  background-color: #dcf8c6;
+  border-radius: 10px 10px 0 10px;
+}
+
+.receiver.message-content {
+  align-self: flex-start;
+  background-color: #fff;
+  border-radius: 10px 10px 10px 0;
+} */
+
+.message-content {
+  padding: 10px;
+  max-width: 100%; /* Ensure it fits within the container */
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+
+
+.message-timestamp {
+  font-size: 0.75em;
+  color: #999;
+  text-align: right;
+}
+
+.new-message-divider {
+  text-align: center;
+  font-size: 0.85em;
+  color: #666;
+  margin: 30px;
+}
+
+/* Chat.css */
+
+.sender .message-content {
+  align-self: flex-start;
+  background-color: #dcf8c6;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  color: #333;
+  font-weight: bold;
+    width:  auto;
+
+}
+
+.receiver .message-content {
+  align-self: flex-end;
+  background-color: #fff;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  color: #333;
+  font-weight: bold;
+   width: auto;
+  max-width: 70%;
+}
+
+.sender .message-timestamp {
+  font-size: 0.75em;
+  color: #999;
+  text-align: right;
+}
+
+.receiver .message-timestamp {
+  font-size: 0.75em;
+  color: #999;
+  text-align: right;
+}
+
+.new-message-divider {
+  text-align: center;
+  font-size: 0.85em;
+  color: #666;
+  margin-bottom: 10px;
+  font-weight: bold;
+}
+
+/* input[type="text"] {
+  width: 50%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+} */
+
+/* button {
+  padding: 8px;
+  margin-left: 10px;
+} */
+
+.chat-history input[type="text"] {
+  width: 90%;
+  padding: 10px;
+  margin: 10px;
+}
+.btn-primary {
+  width: 150px; /* Or any other value */
+ padding: 5px;
+}
+.input-container {
+  display: flex;
+  justify-content: space-between;
+}
+.conversation-button{
+  background-color: #6dc8ec94;
+   width: 100%;
+  word-wrap: break-word;
+  box-sizing: border-box; /* Add this line */
+  border: none;
+  color: white;
+  padding:15px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  transition-duration: 0.4s;
+  cursor: pointer;
+  border-radius: 4px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+@media (max-width: 600px) {
+  .conversation-button {
+    width: 20%; /* Adjust the width for small screens */
+  }
+}
+
+
+.conversation-button:hover {
+  background-color: #5b8bf1; /* Darker green */
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+
+
+.fetch-conversation-button {
+  background-color: #6dc8ec94;
+  width: 100%;
+  word-wrap: break-word;
+  box-sizing: border-box;
+  border: none;
+  color: white;
+  padding:15px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  transition-duration: 0.4s;
+  cursor: pointer;
+  border-radius: 4px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+.fetch-conversation-button:hover {
+  background-color: #5b8bf1; /* Darker green */
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+.call-controls {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 10px;
+}
+
+.screen-share {
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+
+/* you a re a developer in websoket and webrtc with rect and django we suppose that we connect to our soket with a user when we enter its conversation based on a sender and resivers id the problem is if user 1 was in the conversation with user 5 and 5 also in conversation with 1 so we have the 1/5 room and 5/1 the problem is if at the same time number 2 is caling number 1 i wold like to notify him that he have a call and if he pres answer the soket with 1/5 is ended and a soket with 1/2 is created  */

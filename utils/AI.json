@@ -1,0 +1,34 @@
+{
+  "interns": [
+    {
+      "name": "John Doe",
+      "email": "john.doe@example.com",
+      "phone": "+123456789",
+      "skills": ["Python", "Django", "JavaScript"],
+      "education": {
+        "degree": "Bachelor's Degree in Computer Science",
+        "university": "University of Example"
+      }
+    },
+    {
+      "name": "Alice Smith",
+      "email": "alice.smith@example.com",
+      "phone": "+987654321",
+      "skills": ["Java", "Spring", "React"],
+      "education": {
+        "degree": "Master's Degree in Information Technology",
+        "university": "University of Example"
+      }
+    },
+    {
+      "name": "Michael Johnson",
+      "email": "michael.johnson@example.com",
+      "phone": "+1122334455",
+      "skills": ["C++", "SQL", "HTML/CSS"],
+      "education": {
+        "degree": "Bachelor's Degree in Software Engineering",
+        "university": "University of Example"
+      }
+    }
+  ]
+}
