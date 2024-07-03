@@ -1,12 +1,13 @@
-
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.layers import get_channel_layer
 from asgiref.sync import sync_to_async
 from authentication.models import Message, User, Clients
 import json
 
-class ChatConsumer(AsyncWebsocketConsumer):
+# Global variable to store connected clients
+connected_clients = {}
 
+class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.sender_id = self.scope['url_route']['kwargs']['sender_id']
         self.receiver_id = self.scope['url_route']['kwargs']['receiver_id']
@@ -54,9 +55,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "receiver_id": self.receiver_id
                 }
             )
+
     async def handle_offer(self, data):
-        print(f"Handling offer: {data}")
+        global connected_clients
         receiver_channel_name = await self.get_channel_name(self.receiver_id)
+        connected_clients[self.receiver_id] = data['sender_id']
         if receiver_channel_name:
             await self.channel_layer.send(
                 receiver_channel_name,
@@ -67,19 +70,25 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "sender_id": self.sender_id,
                 }
             )
+        print(f'Offer handled: sender_id={self.sender_id}, receiver_id={self.receiver_id}')
 
     async def handle_answer(self, data):
-        print(f"Handling answer: {data}")
-        receiver_channel_name = await self.get_channel_name(self.receiver_id)
-        if receiver_channel_name:
-            await self.channel_layer.send(
-                receiver_channel_name,
-                {
-                    "type": "webrtc.answer",
-                    "answer": data['answer'],
-                    "sender_id": self.sender_id,
-                }
-            )
+        global connected_clients
+        sender_id = connected_clients.get(self.sender_id)
+        if sender_id:
+            receiver_channel_name = await self.get_channel_name(sender_id)
+            if receiver_channel_name:
+                await self.channel_layer.send(
+                    receiver_channel_name,
+                    {
+                        "type": "webrtc.answer",
+                        "answer": data['answer'],
+                        "sender_id": self.sender_id,
+                    }
+                )
+            print(f'Answer handled: sender_id={self.sender_id}, receiver_id={sender_id}')
+        else:
+            print(f'No sender found for receiver_id={self.sender_id}')
 
     async def handle_ice_candidate(self, data):
         print(f"Handling ICE candidate: {data}")
@@ -95,7 +104,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
 
     async def handle_call_ended(self, data):
-        print(f"Handling call ended: {data}")
+        # print(f"Handling call ended: {data}")
         receiver_channel_name = await self.get_channel_name(self.receiver_id)
         if receiver_channel_name:
             await self.channel_layer.send(

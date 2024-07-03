@@ -191,6 +191,7 @@ const App = () => {
         await peerConnection.current.setRemoteDescription(
           new RTCSessionDescription(data.offer)
         );
+        console.log("test");
         setCallStatus("ringing");
         ringAudioRef.current.play();
       } else if (data.type === "answer") {
@@ -204,6 +205,8 @@ const App = () => {
         await peerConnection.current.setRemoteDescription(
           new RTCSessionDescription(data.answer)
         );
+        console.log("test2", data);
+
         setCallStatus("active");
       } else if (data.type === "ice_candidate") {
         try {
@@ -270,6 +273,7 @@ const App = () => {
         type: "offer",
         offer: offer,
         sender_id: senderId,
+        receiver_id: receiverId,
         callType: "video",
       })
     );
