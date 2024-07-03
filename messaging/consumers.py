@@ -3,7 +3,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import sync_to_async
 from authentication.models import Message, User, Clients
 import json
-
+from datetime import datetime
 # Global variable to store connected clients
 connected_clients = {}
 
@@ -41,8 +41,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def handle_chat_message(self, data):
         message = data['message']
+        timestamp = datetime.now().isoformat()  # Get current timestamp in ISO format
         print(f"Handling chat message: {message}")
-        await self.save_message(message)
+        await self.save_message(message, timestamp)
 
         receiver_channel_name = await self.get_channel_name(self.receiver_id)
         if receiver_channel_name:
@@ -52,7 +53,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "type": "chat.message",
                     "message": message,
                     "sender_id": self.sender_id,
-                    "receiver_id": self.receiver_id
+                    "receiver_id": self.receiver_id,
+                    "timestamp": timestamp  # Include timestamp in the message
                 }
             )
 
@@ -126,12 +128,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
         message = event['message']
         sender_id = event['sender_id']
         receiver_id = event['receiver_id']
+        timestamp = event['timestamp']
         print(f"Sending chat message: {message}, sender_id: {sender_id}")
         await self.send(text_data=json.dumps({
             'type': 'chat_message',
             'message': message,
             'sender_id': sender_id,
-            'receiver_id': receiver_id
+            'receiver_id': receiver_id,
+            'timestamp': timestamp
         }))
 
     async def webrtc_offer(self, event):
@@ -167,11 +171,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
         }))
 
     @sync_to_async
-    def save_message(self, message):
+    def save_message(self, message, timestamp):
         try:
             sender = User.objects.get(id=self.sender_id)
             recipient = User.objects.get(id=self.receiver_id)
-            Message.objects.create(sender=sender, recipient=recipient, content=message)
+            Message.objects.create(
+                sender=sender,
+                recipient=recipient,
+                content=message,
+                timestamp=datetime.fromisoformat(timestamp)
+            )
         except User.DoesNotExist as e:
             print(f"Error saving message: {e}")
 

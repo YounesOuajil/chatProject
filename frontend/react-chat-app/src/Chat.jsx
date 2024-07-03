@@ -102,10 +102,13 @@ const handleMessageSend = () => {
     signalingServer.current.readyState === WebSocket.OPEN &&
     message.trim() !== ""
   ) {
+    const timestamp = new Date().toISOString(); // Use ISO format for consistency
     const messageData = {
       type: "chat_message",
       message,
-      timestamp: new Date().toLocaleString(),
+      timestamp,
+      sender_id: senderId,
+      receiver_id: receiverId,
     };
     signalingServer.current.send(JSON.stringify(messageData));
 
@@ -114,8 +117,9 @@ const handleMessageSend = () => {
       ...prevMessages,
       {
         content: message,
-        timestamp: messageData.timestamp,
+        timestamp,
         sender: parseInt(senderId),
+        receiver_id: receiverId,
       },
     ]);
 
@@ -231,6 +235,15 @@ const connectToSocket = (senderId, receiverId) => {
       endCall();
     } else if (data.type === "chat_message") {
       setReceivedMessages((prev) => [...prev, data]);
+      setMessages((prevMessages) => [
+        ...prevMessages,
+        {
+          content: data.message,
+          timestamp: data.timestamp,
+          sender: parseInt(data.sender_id),
+          receiver_id: receiverId,
+        },
+      ]);
     }
   };
 
@@ -515,7 +528,6 @@ return (
           >
             <div className="message-content">
               <div className="message-text">{msg.content}</div>
-
               <div className="message-timestamp">
                 {new Date(msg.timestamp).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -526,23 +538,6 @@ return (
             </div>
           </li>
         ))}
-        {receivedMessages
-          .filter(
-            (msg) => msg.receiver_id == senderId && msg.sender_id == receiverId
-          )
-          .map((msg, index) => (
-            <li
-              key={index}
-              className={`message-item new-message ${
-                msg.sender_id === senderId ? "receiver" : "sender"
-              }`}
-            >
-              <div className="message-content">
-                <div className="message-text">{msg.message}</div>
-                <div className="message-timestamp">{timeString}</div>
-              </div>
-            </li>
-          ))}
       </ul>
       <div className="input-container">
         <input
