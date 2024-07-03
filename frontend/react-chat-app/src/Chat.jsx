@@ -96,465 +96,474 @@ const App = () => {
     }
   };
 
-  const handleMessageSend = () => {
-    if (
-      signalingServer.current &&
-      signalingServer.current.readyState === WebSocket.OPEN &&
-      message.trim() !== ""
-    ) {
-      const messageData = {
-        type: "chat_message",
-        message,
-        timestamp: new Date().toLocaleString(),
-      };
-      signalingServer.current.send(JSON.stringify(messageData));
-      setMessage("");
-    }
-  };
+const handleMessageSend = () => {
+  if (
+    signalingServer.current &&
+    signalingServer.current.readyState === WebSocket.OPEN &&
+    message.trim() !== ""
+  ) {
+    const messageData = {
+      type: "chat_message",
+      message,
+      timestamp: new Date().toLocaleString(),
+    };
+    signalingServer.current.send(JSON.stringify(messageData));
 
-  const toggleScreenShare = async () => {
-    if (!isScreenSharing) {
-      try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-        });
-        const screenTrack = screenStream.getTracks()[0];
-        screenTrackRef.current = screenTrack;
+    // Add the sent message to the local state
+    setMessages((prevMessages) => [
+      ...prevMessages,
+      {
+        content: message,
+        timestamp: messageData.timestamp,
+        sender: parseInt(senderId),
+      },
+    ]);
 
-        const sender = peerConnection.current
-          .getSenders()
-          .find((s) => s.track.kind === "video");
-        sender.replaceTrack(screenTrack);
+    setMessage("");
+  }
+};
 
-        screenTrack.onended = () => {
-          stopScreenShare();
-        };
-
-        setIsScreenSharing(true);
-      } catch (error) {
-        console.error("Error sharing screen:", error);
-      }
-    } else {
-      stopScreenShare();
-    }
-  };
-
-  const stopScreenShare = () => {
-    if (screenTrackRef.current) {
-      screenTrackRef.current.stop();
-      const localStream = localVideoRef.current.srcObject;
-      const localVideoTrack = localStream
-        .getTracks()
-        .find((track) => track.kind === "video");
+const toggleScreenShare = async () => {
+  if (!isScreenSharing) {
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+      });
+      const screenTrack = screenStream.getTracks()[0];
+      screenTrackRef.current = screenTrack;
 
       const sender = peerConnection.current
         .getSenders()
         .find((s) => s.track.kind === "video");
-      sender.replaceTrack(localVideoTrack);
+      sender.replaceTrack(screenTrack);
 
-      screenTrackRef.current = null;
-      setIsScreenSharing(false);
-    }
-  };
+      screenTrack.onended = () => {
+        stopScreenShare();
+      };
 
-  const getHistory = async () => {
-    try {
-      const response = await fetch(
-        `http://localhost:8000/messaging/api/chat/${receiverId}/${senderId}/history/`
-      );
-      if (!response.ok) throw new Error("Failed to fetch history");
-      const result = await response.json();
-      setMessages(result);
-      scrollToBottom();
+      setIsScreenSharing(true);
     } catch (error) {
-      console.error("Error fetching history:", error.message);
+      console.error("Error sharing screen:", error);
+    }
+  } else {
+    stopScreenShare();
+  }
+};
+
+const stopScreenShare = () => {
+  if (screenTrackRef.current) {
+    screenTrackRef.current.stop();
+    const localStream = localVideoRef.current.srcObject;
+    const localVideoTrack = localStream
+      .getTracks()
+      .find((track) => track.kind === "video");
+
+    const sender = peerConnection.current
+      .getSenders()
+      .find((s) => s.track.kind === "video");
+    sender.replaceTrack(localVideoTrack);
+
+    screenTrackRef.current = null;
+    setIsScreenSharing(false);
+  }
+};
+
+const getHistory = async () => {
+  try {
+    const response = await fetch(
+      `http://localhost:8000/messaging/api/chat/${receiverId}/${senderId}/history/`
+    );
+    if (!response.ok) throw new Error("Failed to fetch history");
+    const result = await response.json();
+    setMessages(result);
+    scrollToBottom();
+  } catch (error) {
+    console.error("Error fetching history:", error.message);
+  }
+};
+
+const connectToSocket = (senderId, receiverId) => {
+  const signalingServerUrl = `ws://localhost:8000/ws/chat/${senderId}/${receiverId}/`;
+  signalingServer.current = new WebSocket(signalingServerUrl);
+
+  signalingServer.current.onmessage = async (message) => {
+    const data = JSON.parse(message.data);
+    console.log("Message from server:", data);
+
+    if (data.type === "offer") {
+      if (peerConnection.current.signalingState !== "stable") {
+        console.error(
+          "PeerConnection is not in a stable state:",
+          peerConnection.current.signalingState
+        );
+        return;
+      }
+      callTypeRef.current = data.callType;
+      await peerConnection.current.setRemoteDescription(
+        new RTCSessionDescription(data.offer)
+      );
+      console.log("test");
+      setCallStatus("ringing");
+      ringAudioRef.current.play();
+    } else if (data.type === "answer") {
+      if (peerConnection.current.signalingState !== "have-local-offer") {
+        console.error(
+          "PeerConnection is not in a state to accept an answer:",
+          peerConnection.current.signalingState
+        );
+        return;
+      }
+      await peerConnection.current.setRemoteDescription(
+        new RTCSessionDescription(data.answer)
+      );
+      console.log("test2", data);
+
+      setCallStatus("active");
+    } else if (data.type === "ice_candidate") {
+      try {
+        await peerConnection.current.addIceCandidate(
+          new RTCIceCandidate(data.candidate)
+        );
+      } catch (error) {
+        console.error("Failed to add ICE candidate:", error);
+      }
+    } else if (data.type === "call_ended") {
+      endCall();
+    } else if (data.type === "chat_message") {
+      setReceivedMessages((prev) => [...prev, data]);
     }
   };
 
-  const connectToSocket = (senderId, receiverId) => {
-    const signalingServerUrl = `ws://localhost:8000/ws/chat/${senderId}/${receiverId}/`;
-    signalingServer.current = new WebSocket(signalingServerUrl);
+  signalingServer.current.onopen = () => {
+    console.log("Signaling server connected");
+  };
 
-    signalingServer.current.onmessage = async (message) => {
-      const data = JSON.parse(message.data);
-      console.log("Message from server:", data);
+  peerConnection.current = new RTCPeerConnection({ iceServers });
 
-      if (data.type === "offer") {
-        if (peerConnection.current.signalingState !== "stable") {
-          console.error(
-            "PeerConnection is not in a stable state:",
-            peerConnection.current.signalingState
-          );
-          return;
-        }
-        callTypeRef.current = data.callType;
-        await peerConnection.current.setRemoteDescription(
-          new RTCSessionDescription(data.offer)
-        );
-        console.log("test");
-        setCallStatus("ringing");
-        ringAudioRef.current.play();
-      } else if (data.type === "answer") {
-        if (peerConnection.current.signalingState !== "have-local-offer") {
-          console.error(
-            "PeerConnection is not in a state to accept an answer:",
-            peerConnection.current.signalingState
-          );
-          return;
-        }
-        await peerConnection.current.setRemoteDescription(
-          new RTCSessionDescription(data.answer)
-        );
-        console.log("test2", data);
+  peerConnection.current.onicecandidate = (event) => {
+    if (event.candidate) {
+      signalingServer.current.send(
+        JSON.stringify({
+          type: "ice_candidate",
+          candidate: event.candidate,
+          sender_id: senderId,
+        })
+      );
+    }
+  };
 
-        setCallStatus("active");
-      } else if (data.type === "ice_candidate") {
-        try {
-          await peerConnection.current.addIceCandidate(
-            new RTCIceCandidate(data.candidate)
-          );
-        } catch (error) {
-          console.error("Failed to add ICE candidate:", error);
-        }
-      } else if (data.type === "call_ended") {
-        endCall();
-      } else if (data.type === "chat_message") {
-        setReceivedMessages((prev) => [...prev, data]);
-      }
-    };
+  peerConnection.current.ontrack = (event) => {
+    remoteVideoRef.current.srcObject = event.streams[0];
+  };
+};
 
-    signalingServer.current.onopen = () => {
-      console.log("Signaling server connected");
-    };
-
+const startLocalStream = async () => {
+  if (!peerConnection.current) {
     peerConnection.current = new RTCPeerConnection({ iceServers });
+  }
 
-    peerConnection.current.onicecandidate = (event) => {
-      if (event.candidate) {
-        signalingServer.current.send(
-          JSON.stringify({
-            type: "ice_candidate",
-            candidate: event.candidate,
-            sender_id: senderId,
-          })
-        );
-      }
-    };
-
-    peerConnection.current.ontrack = (event) => {
-      remoteVideoRef.current.srcObject = event.streams[0];
-    };
-  };
-
-  const startLocalStream = async () => {
-    if (!peerConnection.current) {
-      peerConnection.current = new RTCPeerConnection({ iceServers });
-    }
-
-    if (!signalingServer.current) {
-      signalingServer.current = new WebSocket(
-        `ws://localhost:8000/ws/chat/${senderId}/${receiverId}/`
-      );
-    }
-
-    const localStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
-    localVideoRef.current.srcObject = localStream;
-    localStream
-      .getTracks()
-      .forEach((track) => peerConnection.current.addTrack(track, localStream));
-
-    const offer = await peerConnection.current.createOffer();
-    await peerConnection.current.setLocalDescription(offer);
-    signalingServer.current.send(
-      JSON.stringify({
-        type: "offer",
-        offer: offer,
-        sender_id: senderId,
-        receiver_id: receiverId,
-        callType: "video",
-      })
+  if (!signalingServer.current) {
+    signalingServer.current = new WebSocket(
+      `ws://localhost:8000/ws/chat/${senderId}/${receiverId}/`
     );
-    setCallStatus("active");
-  };
+  }
 
-  const startLocalAudioStream = async () => {
-    if (!peerConnection.current) {
-      peerConnection.current = new RTCPeerConnection({ iceServers });
-    }
+  const localStream = await navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: true,
+  });
+  localVideoRef.current.srcObject = localStream;
+  localStream
+    .getTracks()
+    .forEach((track) => peerConnection.current.addTrack(track, localStream));
 
-    if (!signalingServer.current) {
-      signalingServer.current = new WebSocket(
-        `ws://localhost:8000/ws/chat/${senderId}/${receiverId}/`
-      );
-    }
+  const offer = await peerConnection.current.createOffer();
+  await peerConnection.current.setLocalDescription(offer);
+  signalingServer.current.send(
+    JSON.stringify({
+      type: "offer",
+      offer: offer,
+      sender_id: senderId,
+      receiver_id: receiverId,
+      callType: "video",
+    })
+  );
+  setCallStatus("active");
+};
 
-    const localStream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-    });
-    localVideoRef.current.srcObject = localStream;
-    localStream
-      .getTracks()
-      .forEach((track) => peerConnection.current.addTrack(track, localStream));
+const startLocalAudioStream = async () => {
+  if (!peerConnection.current) {
+    peerConnection.current = new RTCPeerConnection({ iceServers });
+  }
 
-    const offer = await peerConnection.current.createOffer();
-    await peerConnection.current.setLocalDescription(offer);
-    signalingServer.current.send(
-      JSON.stringify({
-        type: "offer",
-        offer: offer,
-        sender_id: senderId,
-        callType: "audio",
-      })
+  if (!signalingServer.current) {
+    signalingServer.current = new WebSocket(
+      `ws://localhost:8000/ws/chat/${senderId}/${receiverId}/`
     );
-    setCallStatus("active");
-  };
+  }
 
-  const stopScreenSharing = () => {
-    screenStreamRef.current.getTracks().forEach((track) => track.stop());
-    screenStreamRef.current = null;
-    setScreenSharing(false);
-  };
+  const localStream = await navigator.mediaDevices.getUserMedia({
+    audio: true,
+  });
+  localVideoRef.current.srcObject = localStream;
+  localStream
+    .getTracks()
+    .forEach((track) => peerConnection.current.addTrack(track, localStream));
 
-  const acceptCall = async () => {
+  const offer = await peerConnection.current.createOffer();
+  await peerConnection.current.setLocalDescription(offer);
+  signalingServer.current.send(
+    JSON.stringify({
+      type: "offer",
+      offer: offer,
+      sender_id: senderId,
+      callType: "audio",
+    })
+  );
+  setCallStatus("active");
+};
+
+const stopScreenSharing = () => {
+  screenStreamRef.current.getTracks().forEach((track) => track.stop());
+  screenStreamRef.current = null;
+  setScreenSharing(false);
+};
+
+const acceptCall = async () => {
+  ringAudioRef.current.pause();
+  ringAudioRef.current.currentTime = 0;
+
+  const localStream = await navigator.mediaDevices.getUserMedia({
+    video: callTypeRef.current === "video",
+    audio: true,
+  });
+  localVideoRef.current.srcObject = localStream;
+  localStream
+    .getTracks()
+    .forEach((track) => peerConnection.current.addTrack(track, localStream));
+
+  const answer = await peerConnection.current.createAnswer();
+  await peerConnection.current.setLocalDescription(answer);
+  signalingServer.current.send(
+    JSON.stringify({ type: "answer", answer: answer, sender_id: senderId })
+  );
+  setCallStatus("active");
+};
+
+const endCall = () => {
+  if (localVideoRef.current.srcObject) {
+    localVideoRef.current.srcObject
+      .getTracks()
+      .forEach((track) => track.stop());
+    localVideoRef.current.srcObject = null;
+  }
+
+  if (peerConnection.current) {
+    peerConnection.current.close();
+    peerConnection.current = null;
+  }
+
+  if (signalingServer.current) {
+    signalingServer.current.send(
+      JSON.stringify({ type: "call_ended", sender_id: senderId })
+    );
+    signalingServer.current.close();
+    signalingServer.current = null;
+  }
+
+  if (ringAudioRef.current) {
     ringAudioRef.current.pause();
     ringAudioRef.current.currentTime = 0;
+  }
 
-    const localStream = await navigator.mediaDevices.getUserMedia({
-      video: callTypeRef.current === "video",
-      audio: true,
-    });
-    localVideoRef.current.srcObject = localStream;
-    localStream
-      .getTracks()
-      .forEach((track) => peerConnection.current.addTrack(track, localStream));
+  if (screenSharing) {
+    stopScreenSharing();
+  }
 
-    const answer = await peerConnection.current.createAnswer();
-    await peerConnection.current.setLocalDescription(answer);
-    signalingServer.current.send(
-      JSON.stringify({ type: "answer", answer: answer, sender_id: senderId })
-    );
-    setCallStatus("active");
-  };
+  connectToSocket(senderId, receiverId);
+  setCallStatus("idle");
+};
 
-  const endCall = () => {
-    if (localVideoRef.current.srcObject) {
-      localVideoRef.current.srcObject
-        .getTracks()
-        .forEach((track) => track.stop());
-      localVideoRef.current.srcObject = null;
-    }
+console.log("receivedMessages:", receivedMessages);
+console.log("senderId:", senderId);
 
-    if (peerConnection.current) {
-      peerConnection.current.close();
-      peerConnection.current = null;
-    }
+const filteredMessages = receivedMessages.filter((msg) => {
+  console.log("Checking message:", msg);
 
-    if (signalingServer.current) {
-      signalingServer.current.send(
-        JSON.stringify({ type: "call_ended", sender_id: senderId })
-      );
-      signalingServer.current.close();
-      signalingServer.current = null;
-    }
+  return msg.receiver_id === senderId;
+});
 
-    if (ringAudioRef.current) {
-      ringAudioRef.current.pause();
-      ringAudioRef.current.currentTime = 0;
-    }
-
-    if (screenSharing) {
-      stopScreenSharing();
-    }
-
-    connectToSocket(senderId, receiverId);
-    setCallStatus("idle");
-  };
-
-  console.log("receivedMessages:", receivedMessages);
-  console.log("senderId:", senderId);
-
-  const filteredMessages = receivedMessages.filter((msg) => {
-    console.log("Checking message:", msg);
-
-    return msg.receiver_id === senderId;
-  });
-
-  console.log("filteredMessages:", filteredMessages);
-  return (
-    <div className={`App ${callStatus === "active" ? "call-active" : ""}`}>
-      <div className="videocalldisplay">
-        <div className="localvideo">
-          <video ref={localVideoRef} autoPlay muted className="video"></video>
-        </div>
-        <div className="remotvideo">
-          <video ref={remoteVideoRef} autoPlay className="video"></video>
-        </div>
+console.log("filteredMessages:", filteredMessages);
+return (
+  <div className={`App ${callStatus === "active" ? "call-active" : ""}`}>
+    <div className="videocalldisplay">
+      <div className="localvideo">
+        <video ref={localVideoRef} autoPlay muted className="video"></video>
       </div>
-      {callStatus !== "active" && (
-        <div className="conversation-container">
-          <form onSubmit={handleSubmit}>
-            <label htmlFor="sender-id">Enter sender ID:</label>
-            <input
-              id="sender-id"
-              type="text"
-              value={senderId}
-              onChange={handleChange}
-            />
-            <button className="fetch-conversation-button" type="submit">
-              Fetch Conversation
-            </button>
-          </form>
-          {loading && <p>Loading...</p>}
-          <ul className="message-list">
-            {msg.map((message, index) => (
-              <li
-                key={index}
-                className={
-                  message.sender === senderId
-                    ? "received-message"
-                    : "sent-message"
-                }
-              >
-                <button
-                  className="conversation-button"
-                  onClick={() => setReceiverId(message.id)}
-                >
-                  {message.username}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="chat-history" ref={historyRef}>
-        <div className="video-call-container">
-          {(callStatus === "idle" || callStatus === "ended") && (
-            <>
-              <img
-                style={{ width: "30px", height: "30px" }}
-                onClick={() => {
-                  callTypeRef.current = "video";
-                  startLocalStream();
-                }}
-                src={process.env.PUBLIC_URL + "video-camera.png"}
-                alt="Video Call"
-              />
-              <img
-                style={{ width: "30px", height: "30px" }}
-                onClick={() => {
-                  callTypeRef.current = "audio";
-                  startLocalAudioStream();
-                }}
-                src={process.env.PUBLIC_URL + "phone-call.png"}
-                alt="Voice Call"
-              />
-            </>
-          )}
-          {callStatus === "ringing" && (
-            <>
-              <button onClick={acceptCall}>Accept Call</button>
-              <button className="end-call" onClick={endCall}>
-                End Call
-              </button>
-            </>
-          )}
-          {callStatus === "active" && (
-            <div className="call-controls">
-              <button className="end-call" onClick={endCall}>
-                End Call
-              </button>
-              {callTypeRef.current === "video" ? (
-                <button className="screen-share" onClick={toggleScreenShare}>
-                  {isScreenSharing ? (
-                    <img
-                      style={{ width: "30px", height: "30px" }}
-                      src={process.env.PUBLIC_URL + "screen-share.png"}
-                    />
-                  ) : (
-                    <img
-                      style={{ width: "30px", height: "30px" }}
-                      src={process.env.PUBLIC_URL + "stop-screen-share.png"}
-                    />
-                  )}
-                </button>
-              ) : (
-                ""
-              )}
-            </div>
-          )}
-
-          <audio
-            ref={ringAudioRef}
-            src={process.env.PUBLIC_URL + "messenger_video_call.mp3"}
-            loop
-          ></audio>
-        </div>
-
+      <div className="remotvideo">
+        <video ref={remoteVideoRef} autoPlay className="video"></video>
+      </div>
+    </div>
+    {callStatus !== "active" && (
+      <div className="conversation-container">
+        <form onSubmit={handleSubmit}>
+          <label htmlFor="sender-id">Enter sender ID:</label>
+          <input
+            id="sender-id"
+            type="text"
+            value={senderId}
+            onChange={handleChange}
+          />
+          <button className="fetch-conversation-button" type="submit">
+            Fetch Conversation
+          </button>
+        </form>
+        {loading && <p>Loading...</p>}
         <ul className="message-list">
-          {messages.map((msg, index) => (
+          {msg.map((message, index) => (
             <li
               key={index}
-              className={`message-item ${
-                msg.sender === parseInt(senderId) ? "receiver" : "sender"
+              className={
+                message.sender === senderId
+                  ? "received-message"
+                  : "sent-message"
+              }
+            >
+              <button
+                className="conversation-button"
+                onClick={() => setReceiverId(message.id)}
+              >
+                {message.username}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+
+    <div className="chat-history" ref={historyRef}>
+      <div className="video-call-container">
+        {(callStatus === "idle" || callStatus === "ended") && (
+          <>
+            <img
+              style={{ width: "30px", height: "30px" }}
+              onClick={() => {
+                callTypeRef.current = "video";
+                startLocalStream();
+              }}
+              src={process.env.PUBLIC_URL + "video-camera.png"}
+              alt="Video Call"
+            />
+            <img
+              style={{ width: "30px", height: "30px" }}
+              onClick={() => {
+                callTypeRef.current = "audio";
+                startLocalAudioStream();
+              }}
+              src={process.env.PUBLIC_URL + "phone-call.png"}
+              alt="Voice Call"
+            />
+          </>
+        )}
+        {callStatus === "ringing" && (
+          <>
+            <button onClick={acceptCall}>Accept Call</button>
+            <button className="end-call" onClick={endCall}>
+              End Call
+            </button>
+          </>
+        )}
+        {callStatus === "active" && (
+          <div className="call-controls">
+            <button className="end-call" onClick={endCall}>
+              End Call
+            </button>
+            {callTypeRef.current === "video" ? (
+              <button className="screen-share" onClick={toggleScreenShare}>
+                {isScreenSharing ? (
+                  <img
+                    style={{ width: "30px", height: "30px" }}
+                    src={process.env.PUBLIC_URL + "screen-share.png"}
+                  />
+                ) : (
+                  <img
+                    style={{ width: "30px", height: "30px" }}
+                    src={process.env.PUBLIC_URL + "stop-screen-share.png"}
+                  />
+                )}
+              </button>
+            ) : (
+              ""
+            )}
+          </div>
+        )}
+
+        <audio
+          ref={ringAudioRef}
+          src={process.env.PUBLIC_URL + "messenger_video_call.mp3"}
+          loop
+        ></audio>
+      </div>
+
+      <ul className="message-list">
+        {messages.map((msg, index) => (
+          <li
+            key={index}
+            className={`message-item ${
+              msg.sender === parseInt(senderId) ? "receiver" : "sender"
+            }`}
+          >
+            <div className="message-content">
+              <div className="message-text">{msg.content}</div>
+
+              <div className="message-timestamp">
+                {new Date(msg.timestamp).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                })}
+              </div>
+            </div>
+          </li>
+        ))}
+        {receivedMessages
+          .filter(
+            (msg) => msg.receiver_id == senderId && msg.sender_id == receiverId
+          )
+          .map((msg, index) => (
+            <li
+              key={index}
+              className={`message-item new-message ${
+                msg.sender_id === senderId ? "receiver" : "sender"
               }`}
             >
               <div className="message-content">
-                <div className="message-text">{msg.content}</div>
-
-                <div className="message-timestamp">
-                  {new Date(msg.timestamp).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: true,
-                  })}
-                </div>
+                <div className="message-text">{msg.message}</div>
+                <div className="message-timestamp">{timeString}</div>
               </div>
             </li>
           ))}
-          <li className="new-message-divider">New Message</li>
-          {receivedMessages
-            .filter(
-              (msg) =>
-                msg.receiver_id === senderId && msg.sender_id === receiverId
-            )
-            .map((msg, index) => (
-              <li
-                key={index}
-                className={`message-item new-message ${
-                  msg.sender_id === senderId ? "receiver" : "sender"
-                }`}
-              >
-                <div className="message-content">
-                  <div className="message-text">{msg.message}</div>
-                  <div className="message-timestamp">{timeString}</div>
-                </div>
-              </li>
-            ))}
-        </ul>
-        <div className="input-container">
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type your message..."
-          />
-          <IconButton
-            className="btn-primary"
-            variant="contained"
-            color="primary"
-            onClick={handleMessageSend}
-            sx={{ width: "10%", color: "#000" }}
-          >
-            <SendIcon fontSize="large" />
-          </IconButton>
-        </div>
+      </ul>
+      <div className="input-container">
+        <input
+          type="text"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Type your message..."
+        />
+        <IconButton
+          className="btn-primary"
+          variant="contained"
+          color="primary"
+          onClick={handleMessageSend}
+          sx={{ width: "10%", color: "#000" }}
+        >
+          <SendIcon fontSize="large" />
+        </IconButton>
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 export default App;
