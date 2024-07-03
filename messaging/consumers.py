@@ -92,7 +92,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def handle_ice_candidate(self, data):
         print(f"Handling ICE candidate: {data}")
+        global connected_clients
         receiver_channel_name = await self.get_channel_name(self.receiver_id)
+        connected_clients[self.receiver_id] = data['sender_id']
         if receiver_channel_name:
             await self.channel_layer.send(
                 receiver_channel_name,
@@ -104,16 +106,21 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
 
     async def handle_call_ended(self, data):
-        # print(f"Handling call ended: {data}")
-        receiver_channel_name = await self.get_channel_name(self.receiver_id)
-        if receiver_channel_name:
-            await self.channel_layer.send(
-                receiver_channel_name,
-                {
-                    "type": "webrtc.call_ended",
-                    "sender_id": self.sender_id,
-                }
-            )
+        global connected_clients
+        receiver_id = connected_clients.get(self.sender_id)
+        if receiver_id:
+            receiver_channel_name = await self.get_channel_name(receiver_id)
+            if receiver_channel_name:
+                await self.channel_layer.send(
+                    receiver_channel_name,
+                    {
+                        "type": "webrtc.call_ended",
+                        "sender_id": self.sender_id,
+                    }
+                )
+            del connected_clients[self.sender_id]  # Remove the connection
+        else:
+            print(f"No active call found for sender_id={self.sender_id}")
 
     async def chat_message(self, event):
         message = event['message']
@@ -178,7 +185,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @sync_to_async
     def add_client_channel(self, user_id, channel_name):
-        Clients.objects.create(user_id=user_id, channel_name=channel_name)
+        if Clients.objects.filter(user_id=user_id).exists():
+            return 
+        else:
+            Clients.objects.create(user_id=user_id, channel_name=channel_name)
 
     @sync_to_async
     def remove_client_channel(self, channel_name):
