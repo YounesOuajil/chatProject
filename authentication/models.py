@@ -17,7 +17,8 @@ class User(AbstractUser):
     email= models.EmailField(unique=True)
     role= models.CharField(max_length=1, choices= MEMBERSHIP_CHOICES, default='c')
     gender=models.CharField(max_length=1, choices= GENDER_CHOICES)
-    
+    in_call=models.BooleanField(default=False)
+
 
 
 class Candidate(User):
@@ -83,12 +84,6 @@ class Message(models.Model):
     content = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
     
-class UserStatus(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    status = models.CharField(max_length=10, choices=[('available', 'Available'), ('busy', 'Busy')], default='available')
-
-    def __str__(self):
-        return f"{self.user.username} - {self.status}"
     
 class Clients(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -96,3 +91,10 @@ class Clients(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.channel_name}"
+
+class UserStatus(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    status = models.CharField(max_length=10, choices=[('available', 'Available'), ('busy', 'Busy')], default='available')
+
+    def __str__(self):
+        return f"{self.user.username} - {self.status}"
